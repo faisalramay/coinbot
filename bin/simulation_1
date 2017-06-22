@@ -7,12 +7,20 @@ var CronJob = require('cron').CronJob;
 
 var redis = new Redis(config.redis.port);
 
-// This should be a function
-var counter = {};
-var PORTFOLIO_VALUE = 1000;
-var MAX_PER_COIN = 0.3;
-var BUY_AT_X_MIN = 1.03;
-var SELL_AT_X_MAX = 0.98;
+// IMPORTANT: Make sure this is different for each simulation
+var sim = 'simulation_1'
+
+// DEFAULT VALUES: Only used when the simulation is run for the first time
+// subsequent runs will take these values from Redis (if updated via webserver)
+var sim_duration = 6;
+var sim_portfolio = { 'coins': {'USDT': 1000}, 'base_coin': 'USDT'};
+var sim_watch = ['ETH', 'BTC', 'LTC', 'XRP'];
+var sim_max_allocation = 0.3;
+var sim_buy_at = 1.03;
+var sim_sell_at = 0.98;
+
+// GLOBAL VARIABLES
+var PORTFOLIO = {};
 
 function net () {
 	// net worth, portfolio value...
@@ -127,23 +135,97 @@ function process ( ticker, callback ) {
 var job = new CronJob('* * * * * *', function() {
 	// This function runs every second
 	
-	// For each coin we are interested in
-	redis.smembers('monitor', function(err, coins){
-		async.each(coins, function(ticker, callback){
-			
-			// console.log('processing ticker: ' + ticker);
-			process( ticker, function(err){
-				if (err) console.log('error processing ticker: ' + ticker);
+	// Reset portfolio at each cycle
+	PORTFOLIO = { 'coins': [], 'base_coin': '' };
+	
+	async.series([
+	
+		function(callback){
+			// Get current portfolio
+			redis.smembers(sim + '-portfolio-coins', function(err, results){
+				
+				if ( _.isEmpty(results) ) {
+					
+					console.log('portfolio has not been created in redis, let\'s do that...');
+					async.each( _.keys(sim_portfolio['coins']), function(coin, callback){
+						console.log('adding ' + sim_portfolio['coins'][coin] + ' ' + coin + ' to portfolio...');
+						redis.sadd(sim + '-portfolio-coins', coin);
+						redis.set(sim + '-portfolio-' + coin, sim_portfolio['coins'][coin]);
+						callback();
+						
+					}, function(err){
+						if (err) console.log('error creating portfolio in redis...');
+						
+						console.log('setting base coin to ' + sim_portfolio['base_coin'] + '...');
+						redis.set(sim + '-portfolio-base_coin', sim_portfolio['base_coin']);
+						callback();
+					});
+					
+				} else {
+					
+					async.each(results, function(coin, callback){
+						redis.get(sim + '-portfolio-' + coin, function(err, results){
+							PORTFOLIO['coins'].push({'coin' : coin, 'quantity' : results});
+							callback();
+						});
+					}, function(err){
+						if (err) console.log('error getting portfolio from redis...');
+						
+						redis.get(sim + '-portfolio-base_coin', function(err, results){
+							PORTFOLIO['base_coin'] = results;
+							callback();
+						});
+					});
+
+				}
+				
 				callback();
 			});
-		}, function(err){
-			if (err) {
-				console.log('error processing tickers!');
-			} else {
-				console.log('iteration completed!');
-			}
-		});
+		},
+		
+		function (callback) {
+			// Get coins we are watching
+			redis.smembers(sim + '-watching', function(err, results){
+				
+				if ( _.isEmpty(results) ) {
+					
+					console.log('watching set has not been created in redis, let\'s do that...');
+					async.each( sim_watch, function(coin, callback){
+						console.log('adding ' + coin + ' to watching set...');
+						redis.sadd(sim + '-watching', coin);
+						callback();
+						
+					}, function(err){
+						if (err) console.log('error creating watching set in redis...');
+					});
+					
+				} else {
+					
+					async.each(results, function(coin, callback){
+						// console.log('processing ticker: ' + ticker);
+						process( PORTFOLIO['base_coin'] + '_' + coin, function(err){
+							if (err) console.log('error processing ticker: ' + ticker);
+							callback();
+						});
+						
+					}, function(err){
+						if (err) console.log('error processing tickers!');
+					});
+					
+				}
+				
+				callback();
+				
+			});
+		}
+	
+	], function(err){
+		if (err) console.log('error in simulation');
+		
+		console.log('terminating...');
+
 	});
+
 },  function() {
 	console.log('terminating...');
 }, true);
