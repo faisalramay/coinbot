@@ -1,0 +1,68 @@
+var autobahn = require('autobahn');
+var Redis = require('ioredis');
+var async = require('async');
+var moment = require('moment');
+var config = require('../config');
+
+var wsuri = "wss://api.poloniex.com";
+var connection = new autobahn.Connection({
+  url: wsuri,
+  realm: "realm1"
+});
+
+var redis = new Redis(config.redis.port);
+
+function setMinPrice (ticker, price) {
+	// Check current minimum price in redis, update if required
+	redis.get('price-min-' + ticker, function(err, min) {
+		if ( ! min ) redis.set('price-min-' + ticker, price);
+		if ( price < min ) redis.set('price-min-' + ticker, price);
+	}); 
+}
+
+function setMaxPrice (ticker, price) {
+	// Check current maximum price in redis, update if required
+	redis.get('price-max-' + ticker, function(err, max) {
+		if ( price > max ) redis.set('price-max-' + ticker, price);
+	});
+}
+
+function setLastPrice (ticker, price) {
+	// Always update last price
+	redis.set('price-last-' + ticker, price);
+}
+
+function addPriceToHistory (ticker, price) {
+	// Add price to historical prices
+	var score = moment().format('x');
+	redis.zadd('price-history-' + ticker, score, price);
+}
+
+function updateRates (ticker) {
+	
+	// This is where prices are updated in Redis...
+	var t = ticker[0];
+	var p = ticker[1];
+	
+	setMinPrice(t, p);
+	setMaxPrice(t, p);
+	setLastPrice(t, p);
+	addPriceToHistory(t, p);
+}
+
+connection.onopen = function (session) {
+	
+	function tickerEvent (args,kwargs) {
+		updateRates(args);
+	}
+	
+	// Getting live updates - prices
+	// tickerEvent is called whenever there is an update
+	session.subscribe('ticker', tickerEvent);
+}
+
+connection.onclose = function () {
+  console.log("Websocket connection closed");
+}
+		       
+connection.open();
