@@ -12,19 +12,9 @@ var connection = new autobahn.Connection({
 
 var redis = new Redis(config.redis.port);
 
-function setMinPrice (ticker, price) {
-	// Check current minimum price in redis, update if required
-	redis.get('price-min-' + ticker, function(err, min) {
-		if ( ! min ) redis.set('price-min-' + ticker, price);
-		if ( price < min ) redis.set('price-min-' + ticker, price);
-	}); 
-}
-
-function setMaxPrice (ticker, price) {
-	// Check current maximum price in redis, update if required
-	redis.get('price-max-' + ticker, function(err, max) {
-		if ( price > max ) redis.set('price-max-' + ticker, price);
-	});
+function setLastUpdateTime ( time ) {
+	// Always update time
+	redis.set('poloniex-last-update', time);
 }
 
 function setLastPrice (ticker, price) {
@@ -44,8 +34,7 @@ function updateRates (ticker) {
 	var t = ticker[0];
 	var p = ticker[1];
 	
-	setMinPrice(t, p);
-	setMaxPrice(t, p);
+	setLastUpdateTime( moment().format('x') );
 	setLastPrice(t, p);
 	addPriceToHistory(t, p);
 }
