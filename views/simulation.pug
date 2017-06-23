@@ -1,0 +1,6 @@
+extends layout
+
+block content
+  h1= simulation
+  each coin in watching
+    p wathcing #{coin.coin}, buy at #{coin.buy_at}, sell at #{coin.sell_at}

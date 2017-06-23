@@ -8,50 +8,54 @@ var CronJob = require('cron').CronJob;
 var redis = new Redis(config.redis.port);
 
 // IMPORTANT: Make sure this is different for each simulation
-var sim = 'simulation_1'
+var sim = 'simulation_1';
+var sim_duration = 6;
+var sim_max_allocation = 0.3;
 
 // DEFAULT VALUES: Only used when the simulation is run for the first time
 // subsequent runs will take these values from Redis (if updated via webserver)
-var sim_duration = 6;
 var sim_portfolio = { 'coins': {'USDT': 1000}, 'base_coin': 'USDT'};
 var sim_watch = ['ETH', 'BTC', 'LTC', 'XRP'];
-var sim_max_allocation = 0.3;
 var sim_buy_at = 1.03;
 var sim_sell_at = 0.98;
 
 // GLOBAL VARIABLES
 var PORTFOLIO = {};
 
-function net () {
-	// net worth, portfolio value...
-	console.log('not implemented...');
-}
-
 function buy ( coin, price ) {
 	
 	console.log('buy ' + coin + ' @ ' + price);
-	redis.hgetall('portfolio', function(err, portfolio) {
+	
+	var net_worth = PORTFOLIO['value_in_base_coin'];
+	var base_coin = PORTFOLIO['base_coin'];
+	var available_funds = PORTFOLIO['coins'][base_coin];
+	
+	var available_coins = 0;
+	if ( PORTFOLIO['coins'][coin] ) { available_coins = PORTFOLIO['coins'][coin]; }
+	
+	if ( available_coins <= 0 &&  available_funds >= (sim_max_allocation * net_worth)) {
 		
-		var available_funds = portfolio['USDT'];
+		var pay = sim_max_allocation * net_worth;
+		var get = pay / price;
+		var base_coin_after_trade = available_funds - pay;
 		
-		var available_coins = 0;
-		if ( portfolio[coin] ) { available_coins = portfolio[coin]; }
-		
-		if ( available_coins <= 0 &&  available_funds >= (MAX_PER_COIN * PORTFOLIO_VALUE)) {
-		
-			var pay = MAX_PER_COIN * PORTFOLIO_VALUE;
-			var get = pay / price;
-			
-			console.log('should get ' + get + ' ' + coin + ' coins @ ' + price);
-		
-		} else {
-			console.log('already have ' + coin + ' or do not have funds to buy!');
-			console.log('available ' + coin + ':' + available_coins);
-			console.log('available funds: ' + available_funds);
-		}
-		
-	}); 
+		console.log('should get ' + get + ' ' + coin + ' coins @ ' + price);
+		redis.multi([
+		  ['set', sim + '-portfolio-' + coin, get],
+		  ['set', sim + '-portfolio-' + base_coin, base_coin_after_trade]
+		]).exec(function (err, results) {
+			console.log('updated coin in redis: check...');
+			console.log(results);
+		});
+	
+	} else {
+		console.log('already have ' + coin + ' or do not have funds to buy!');
+		console.log('available ' + coin + ':' + available_coins);
+		console.log('available funds: ' + available_funds);
+	}
+	
 }
+
 
 function sell ( coin, price ) {
 
@@ -69,7 +73,7 @@ function sell ( coin, price ) {
 			console.log('should get ' + get + ' ' + USDT + ' coins @ ' + price);
 			
 			console.log('reset counter for ' + coin + ' @ SELL');
-			counter[coin] = moment().format('x');
+			redis.hset(sim + '-counter', coin, moment().format('x'));
 		
 		} else {
 			console.log('do not have ' + coin + ', nothing to sell!');
@@ -82,37 +86,57 @@ function process ( ticker, callback ) {
 
 	var coin = ticker.split('_')[1];
 	
-	var portfolio = {};
 	var history = [];
-	var min = 0;
-	var max = 0;
+	var buy_at = 0;
+	var sell_at = 0;
 	var last = 0;
 	
 	async.parallel([
 
 		function (callback) {
-			// get portfolio
-			redis.hgetall('portfolio', function(err, result) {
-				portfolio = result;
+			// get buy at price for coin
+			redis.get(sim + '-buy-at-' + coin, function(err, result) {
+				if ( ! result ) {
+					buy_at = sim_buy_at;
+					redis.set(sim + '-buy-at-' + coin, buy_at);
+				}
+				callback();
+			}); 
+		},
+		
+		function (callback) {
+			// get sell at price for coin
+			redis.get(sim + '-sell-at-' + coin, function(err, result) {
+				if ( ! result ) {
+					sell_at = sim_sell_at;
+					redis.set(sim + '-sell-at-' + coin, sell_at);
+				}
 				callback();
 			}); 
 		},
 		
 		function (callback) {
 		
-			// if counter has not be set, let's do that now ...
-			if ( ! counter[coin] ) counter[coin] = moment().format('x');
+			redis.hget(sim + '-counter', coin, function(err, results){
+				
+				var start_time = results;
+				if ( ! results ) {
+					start_time = moment().format('x');
+					redis.hset(sim + '-counter', coin, start_time);
+				}
+				
+				if ( start_time - moment().subtract(6, 'hour').format('x') <= 0 ) {
+					console.log('reset counter for ' + coin + ' @ 6 HOURS');
+					start_time = moment().format('x');
+					redis.hset(sim + '-counter', coin, start_time);
+				}
+				
+				redis.zrangebyscore('price-history-' + ticker, start_time, '+inf', function(err, result) {
+					history = result;
+					callback();
+				}); 
+			});
 			
-			// if it has been more than 6 hours, reset ...
-			if ( counter[coin] - moment().subtract(6, 'hour').format('x') <= 0 ) {
-				console.log('reset counter for ' + coin + ' @ 6 HOURS');
-				counter[coin] = moment().format('x');
-			}
-			
-			redis.zrangebyscore('price-history-' + ticker, counter[coin], '+inf', function(err, result) {
-				history = result;
-				callback();
-			}); 
 		},
 
 		function (callback) {
@@ -127,8 +151,8 @@ function process ( ticker, callback ) {
 		if (err) console.log('error processing ticker: ' + ticker);
 		
 		// need to implement a check on how many coins we are invested in...
-		if ( last > (BUY_AT_X_MIN * _.min(history)) ) buy(coin, last);
-		if ( last < (SELL_AT_X_MAX * _.max(history)) ) sell(coin, last);
+		if ( last > (buy_at * _.min(history)) ) buy(coin, last);
+		if ( last < (sell_at * _.max(history)) ) sell(coin, last);
 	});
 }
 
@@ -158,7 +182,6 @@ var job = new CronJob('* * * * * *', function() {
 						
 						console.log('setting base coin to ' + sim_portfolio['base_coin'] + '...');
 						redis.set(sim + '-portfolio-base_coin', sim_portfolio['base_coin']);
-						callback();
 					});
 					
 				} else {
@@ -173,7 +196,6 @@ var job = new CronJob('* * * * * *', function() {
 						
 						redis.get(sim + '-portfolio-base_coin', function(err, results){
 							PORTFOLIO['base_coin'] = results;
-							callback();
 						});
 					});
 
