@@ -1,0 +1,32 @@
+doctype html
+html
+	head
+		meta(charset='utf-8')
+		meta(http-equiv='X-UA-Compatible', content='IE=edge')
+		meta(name='viewport', content='width=device-width, initial-scale=1')
+		title= title
+		link(rel='stylesheet', href='/stylesheets/bootstrap.min.css')
+		link(rel='stylesheet', href='/stylesheets/style.css')
+	body
+		nav(class='navbar navbar-inverse navbar-fixed-top')
+			div(class='container')
+				div(class='navbar-header')
+					button(type='button', class='navbar-toggle collapsed', data-toggle='collapse', data-target='#navbar', aria-expanded='false', aria-controls='navbar')
+						span(class='sr-only') Toggle navigation
+						span(class='icon-bar')
+						span(class='icon-bar')
+						span(class='icon-bar')
+					a(class='navbar-brand' href='#') Project name
+				div(class='collapse navbar-collapse', id='navbar')
+					ul
+						li(class='active')
+							a(href='#') Home
+						li
+							a(href='#') About
+						li
+							a(href='#') Contact
+
+		div(class='container')
+			block content
+		script(src='https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js')
+		script(src='/javascript/bootstrap.min.js')
