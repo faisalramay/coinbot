@@ -1,6 +1,16 @@
 extends layout
 
 block content
-  h1= simulation
-  each coin in watching
-    p wathcing #{coin.coin}, buy at #{coin.buy_at}, sell at #{coin.sell_at}
+	div(class='panel panel-default')
+		div(class='panel-body')
+			div(class='row')
+				div(class='col-sm-8')
+					h3= simulation
+					ul
+						each coin in watching
+							li Buy #{coin.coin} at #[a(href='/simulation/' + simulation + '/set/' + simulation + '-buy-at-' + coin.coin) #{coin.buy_at}], sell at #[a(href='/simulation/' + simulation + '/set/' + simulation + '-sell-at-' + coin.coin) #{coin.sell_at}]
+				div(class='col-sm-4')
+					h3 #{portfolio.value} #{portfolio.base_coin}
+					ul
+						each quantity, coin in portfolio.coins
+							li #{coin} : #[a(href='/simulation/' + simulation + '/set/' + simulation + '-portfolio-' + coin) #{quantity}]

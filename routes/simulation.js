@@ -5,6 +5,7 @@ var async = require('async');
 var moment = require('moment');
 var _ = require('underscore');
 var config = require('../config');
+var portfolio = require('../model/portfolio');
 
 var redis = new Redis(config.redis.port);
 
@@ -37,27 +38,41 @@ router.get('/:simulation', function(req, res, next) {
 					callback();
 				});
 			}); 
+		},
+		
+		function(callback){
+			
+			portfolio.getPortfolio(sim, function(err, result){
+				data['portfolio'] = result;
+				callback();
+			});
 		}
 	
 	], function(err){
 		if (err) console.log('error getting prices for ticker: ' + ticker);
+		console.log(data);
 		res.render('simulation', data);
 	});
   
 });
 
-router.get('/update/:parameter/simulation/:simulation/coin/:coin', function(req, res, next){
+router.get('/:simulation/set/:parameter', function(req, res, next){
 	
 	var sim = req.params.simulation;
-	var coin = req.params.coin;
 	var param = req.params.parameter;
 	
-	var data = { 'simulation': sim, 'coin': coin, 'param': param, 'value': 0};
+	var data = { 'simulation': sim, 'parameter': param, 'value': 0};
 	
-	redis.get(sim + '-' + param + '-' + coin, function(err, result){
-		data['value'] = result;
-		res.render('sim_update', data);
-	});
+	if( req.query.value ) {
+		console.log('setting ' + param +' to value: ' + req.query.value);
+		redis.set(param, req.query.value);
+		res.redirect('/simulation/' + sim);
+	} else {
+		redis.get(param, function(err, result){
+			data['value'] = result;
+			res.render('simulation_set', data);
+		});
+	}
 	
 });
 

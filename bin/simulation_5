@@ -10,12 +10,12 @@ var CronJob = require('cron').CronJob;
 var redis = new Redis(config.redis.port);
 
 // IMPORTANT: Make sure this is different for each simulation
-var sim = 'simulation_1';
+var sim = 'simulation_5';
 
 // DEFAULT VALUES: Only used when the simulation is run for the first time
 // subsequent runs will take these values from Redis (if updated via webserver)
 var sim_portfolio = { 'coins': {'USDT': 1000}, 'base_coin': 'USDT'};
-var sim_watch = ['ETH', 'BTC', 'LTC', 'XRP', 'ETC'];
+var sim_watch = ['ETH', 'BTC', 'LTC', 'XRP'];
 var sim_buy_at = 1.03;
 var sim_sell_at = 0.98;
 
@@ -49,7 +49,7 @@ var job = new CronJob('* * * * * *', function() {
 			simulation.getWatchedCoins(sim, function(err, results){
 				watching = results;
 				if ( _.isEmpty(results) ) {
-					simulation.initializeSimulation(sim, sim_watch, function(err){
+					simulation.initializeSimulation(sim, sim_watch, sim_buy_at, sim_sell_at, function(err){
 						watching = sim_watch;
 						console.log('Initialized simulation...');
 					});
