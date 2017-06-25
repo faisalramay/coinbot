@@ -2,15 +2,66 @@ extends layout
 
 block content
 	div(class='panel panel-default')
+		div(class='panel-heading')
+			h3= simulation
 		div(class='panel-body')
-			div(class='row')
-				div(class='col-sm-8')
-					h3= simulation
-					ul
+			div(class='table-responsive')
+				table(class='table-condensed table-hover table-bordered')
+					thead
+						tr
+							th Coin
+							th Buy At (% Min)
+							th Sell At (% Max)
+							th Price
+							th Time
+							th Min
+							th Max
+							th Buy At
+							th Sell At
+					tbody
 						each coin in watching
-							li Buy #{coin.coin} at #[a(href='/simulation/' + simulation + '/set/' + simulation + '-buy-at-' + coin.coin) #{coin.buy_at}], sell at #[a(href='/simulation/' + simulation + '/set/' + simulation + '-sell-at-' + coin.coin) #{coin.sell_at}]
-				div(class='col-sm-4')
-					h3 #{portfolio.value} #{portfolio.base_coin}
-					ul
-						each quantity, coin in portfolio.coins
-							li #{coin} : #[a(href='/simulation/' + simulation + '/set/' + simulation + '-portfolio-' + coin) #{quantity}]
+							tr
+								- var buy_at_price = coin.buy_at * coin.min
+								- var sell_at_price = coin.sell_at * coin.max
+								td= coin.coin
+								td
+									a(href='/simulation/' + simulation + '/set/' + simulation + '-buy-at-' + coin.coin) #{coin.buy_at}
+								td
+									a(href='/simulation/' + simulation + '/set/' + simulation + '-sell-at-' + coin.coin) #{coin.sell_at}
+								td= coin.price
+								td= coin.human_counter
+								td= coin.min
+								td= coin.max
+								td= buy_at_price
+								td= sell_at_price
+	div(class='panel panel-default')
+		div(class='panel-heading')
+			h3 Portfolio
+		div(class='panel-body')
+			h3 #{portfolio.value} #{portfolio.base_coin}
+			ul
+				each quantity, coin in portfolio.coins
+					li #{coin} : #[a(href='/simulation/' + simulation + '/set/' + simulation + '-portfolio-' + coin) #{quantity}]
+	div(class='panel panel-default')
+		div(class='panel-heading')
+			h3 Trade History
+		div(class='panel-body')
+			div(class='table-responsive')
+				table(class='table-condensed table-hover table-bordered')
+					thead
+						tr
+							th Time
+							th Type
+							th Coin
+							th Amount (Coin)
+							th Price (USDT)
+							th Total (USDT)
+					tbody
+						each trade in trade_history
+							tr
+								td= trade.human_time
+								td= trade.type
+								td= trade.coin
+								td= trade.amount
+								td= trade.price
+								td= trade.total

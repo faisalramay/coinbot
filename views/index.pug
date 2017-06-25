@@ -1,5 +1,8 @@
 extends layout
 
 block content
-  h1 Coinbot
-  p Last rate refresh was #{last_update}
+	p Last rate refresh was #{last_update}
+	ul
+		each simulation in simulations
+			li
+				a(href='/simulation/' + simulation) #{simulation}

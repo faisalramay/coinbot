@@ -8,7 +8,7 @@ var config = require('../config');
 
 var redis = new Redis(config.redis.port);
 
-exports.initializePortfolio = function(simulation, coins, base_coin, callback) {
+exports.initializePortfolio = function(simulation, coins, base_coin, max_allocation, callback) {
 	
 	async.each( _.keys(coins), function(coin, callback){
 		console.log('adding ' + coins[coin] + ' ' + coin + ' to portfolio...');
@@ -21,6 +21,7 @@ exports.initializePortfolio = function(simulation, coins, base_coin, callback) {
 		
 		console.log('setting base coin to ' + base_coin + '...');
 		redis.set(simulation + '-portfolio-base_coin', base_coin);
+		redis.set(simulation + '-portfolio-max_allocation', max_allocation);
 		callback();
 	});
 };
@@ -29,6 +30,7 @@ exports.getPortfolio = function(simulation, callback) {
 	
 	var portfolio = {};
 	var base_coin;
+	var max_allocation;
 	var coins = {};
 	var value_by_coin = [];
 	var value;
@@ -50,7 +52,10 @@ exports.getPortfolio = function(simulation, callback) {
 					
 					redis.get(simulation + '-portfolio-base_coin', function(err, result){
 						base_coin = result;
-						callback();
+						redis.get(simulation + '-portfolio-max_allocation', function(err, result){
+							max_allocation = result;
+							callback();
+						});
 					});
 				});
 			});
@@ -93,6 +98,7 @@ exports.getPortfolio = function(simulation, callback) {
 		portfolio = {
 			coins: coins,
 			base_coin: base_coin,
+			max_allocation: max_allocation,
 			value: value
 		};
 		callback(null, portfolio);

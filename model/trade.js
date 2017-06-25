@@ -4,27 +4,60 @@ implements all functions related to a simulation portfolio */
 var Redis = require('ioredis');
 var async = require('async');
 var _ = require('underscore');
+var moment = require('moment');
 var config = require('../config');
 var portfolio = require('../model/portfolio');
 
 var redis = new Redis(config.redis.port);
 
-var sim_duration = 4;
-var sim_max_allocation = 0.3;
+function record ( simulation, type, coin, amount, price, total, callback ){
+	
+	var trade_id;
+	async.series([
+		function(callback){
+			// Get trade id...
+			redis.incr(simulation + '-trade-counter', function(err, result){
+				trade_id = result;
+				callback();
+			});
+		},
+		function(callback){
+			// Insert trade ...
+			var score = moment().format('x');
+			redis.multi([
+			  ['zadd', simulation + '-trades', score, trade_id],
+			  ['hset', simulation + '-trade-' + trade_id, 'type', type],
+			  ['hset', simulation + '-trade-' + trade_id, 'coin', coin],
+			  ['hset', simulation + '-trade-' + trade_id, 'amount', amount],
+			  ['hset', simulation + '-trade-' + trade_id, 'price', price],
+			  ['hset', simulation + '-trade-' + trade_id, 'total', total]
+			]).exec(function (err, results) {
+				console.log('added trade in redis: check...');
+				console.log(results);
+				callback();
+			});
+		}
+	], function(err){
+		if (err) console.log('process: error inserting trade!');
+		
+		callback();
+	});
+}
 
 function buy ( simulation, portfolio, coin, price, callback ) {
 	
 	console.log('buy ' + coin + ' @ ' + price);
 	var net_worth = portfolio['value'];
 	var base_coin = portfolio['base_coin'];
+	var max_allocation = portfolio['max_allocation'];
 	var available_funds = portfolio['coins'][base_coin];
 	
 	var available_coins = 0;
 	if ( portfolio['coins'][coin] ) { available_coins = portfolio['coins'][coin]; }
 	
-	if ( available_coins <= 0 &&  available_funds >= (sim_max_allocation * net_worth)) {
+	if ( available_coins <= 0 &&  available_funds >= (max_allocation * net_worth)) {
 		
-		var pay = sim_max_allocation * net_worth;
+		var pay = max_allocation * net_worth;
 		var get = pay / price;
 		var base_coin_after_trade = available_funds - pay;
 		
@@ -36,7 +69,10 @@ function buy ( simulation, portfolio, coin, price, callback ) {
 		]).exec(function (err, results) {
 			console.log('updated coin in redis: check...');
 			console.log(results);
-			callback();
+			record(simulation, 'buy', coin, get, price, pay, function(err){
+				console.log('inserted trade in redis!');
+				callback();
+			});
 		});
 	} else {
 		console.log('already have ' + coin + ' or do not have funds to buy!');
@@ -50,17 +86,18 @@ function buy ( simulation, portfolio, coin, price, callback ) {
 function sell ( simulation, portfolio, coin, price, callback ) {
 
 	// console.log('sell ' + coin + ' @ ' + price);
-	var available_funds = portfolio['USDT'];
+	var base_coin = portfolio['base_coin'];
+	var available_funds = portfolio['coins'][base_coin];
 	
 	var available_coins = 0;
-	if ( portfolio[coin] ) { available_coins = portfolio[coin]; }
+	if ( portfolio['coins'][coin] ) { available_coins = portfolio['coins'][coin]; }
 	
 	if ( available_coins > 0 ) {
 	
 		var get = available_coins * price;
 		var base_coin_after_trade = available_funds + get;
 		
-		console.log('should get ' + get + ' ' + USDT + ' coins @ ' + price);
+		console.log('should get ' + get + ' ' + base_coin + ' @ ' + price);
 		redis.multi([
 		  ['srem', simulation + '-portfolio-coins', coin],
 		  ['set', simulation + '-portfolio-' + coin, 0],
@@ -69,7 +106,10 @@ function sell ( simulation, portfolio, coin, price, callback ) {
 		]).exec(function (err, results) {
 			console.log('updated coin in redis: check...');
 			console.log(results);
-			callback();
+			record(simulation, 'sell', coin, available_coins, price, get,  function(err){
+				console.log('inserted trade in redis!');
+				callback();
+			});
 		});
 	
 	} else{
@@ -121,4 +161,41 @@ exports.process = function(trade, callback) {
 		callback();
 	});
 	
+};
+
+exports.getHistory = function(simulation, callback){
+	
+	var trade_history = {};
+	
+	async.series([
+		function(callback){
+			redis.zrangebyscore(simulation + '-trades', '-inf', '+inf', 'WITHSCORES', function(err, results){
+				var l = results.length;
+				if( l%2 === 0 ) {
+					for (var i = 0; i < l/2; i++){
+						console.log('i is:' + i);
+						trade_history[results[i*2]] = { 'timestamp' : results[(i*2)+1], 'human_time' : moment(results[(i*2)+1], 'x').format('YY/MMM/D HH:mm:ss.SSS')  };
+					}
+				}
+				callback();
+			});
+		},
+		function(callback){
+			async.each( _.keys(trade_history), function(trade_id, callback){
+				redis.hgetall(simulation + '-trade-' + trade_id, function(err, results){
+					console.log(results);
+					trade_history[trade_id] = _.extend(trade_history[trade_id], results);
+					callback();
+				});
+			},function(err){
+				if (err) console.log('error getting trade details');
+				callback();
+			});
+		}
+	], function(err){
+		if (err) console.log('error getting trade history');
+		console.log(trade_history);
+		callback(null, trade_history);
+	});
+
 };

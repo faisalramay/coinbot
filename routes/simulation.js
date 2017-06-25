@@ -5,7 +5,9 @@ var async = require('async');
 var moment = require('moment');
 var _ = require('underscore');
 var config = require('../config');
+var simulation = require('../model/simulation');
 var portfolio = require('../model/portfolio');
+var trade = require('../model/trade');
 
 var redis = new Redis(config.redis.port);
 
@@ -13,37 +15,30 @@ var redis = new Redis(config.redis.port);
 router.get('/:simulation', function(req, res, next) {
 	
 	var sim = req.params.simulation;
-	var data = { 'simulation': sim, 'watching': [], portfolio: {}};
+	var data = { 'simulation': sim, 'watching': [], portfolio: {}, trade_history: {}};
 	
 	async.parallel([
 	
 		function(callback){
 			// get buy_at price
-			redis.smembers(sim + '-watching', function(err, results) {
-				async.each(results, function(coin, callback){
-					redis.get(sim + '-buy-at-' + coin, function(err, buy_at){
-						redis.get(sim + '-sell-at-' + coin, function(err, sell_at){
-							data['watching'].push({
-								'coin': coin,
-								'buy_at': buy_at,
-								'sell_at': sell_at
-							});
-							callback();
-						})
-					});
-					
-					
-				}, function(err){
-					if (err) console.log('error creating portfolio in redis...');
-					callback();
-				});
-			}); 
+			simulation.getWatchedCoinsWithDetails(sim, function(err, results){
+				data['watching'] = results;
+				callback();
+			});
 		},
 		
 		function(callback){
 			
 			portfolio.getPortfolio(sim, function(err, result){
 				data['portfolio'] = result;
+				callback();
+			});
+		},
+		
+		function(callback){
+			//Get trade history
+			trade.getHistory(sim, function(err, results){
+				data['trade_history'] = results;
 				callback();
 			});
 		}
