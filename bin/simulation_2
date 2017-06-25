@@ -15,9 +15,11 @@ var sim = 'simulation_2';
 // DEFAULT VALUES: Only used when the simulation is run for the first time
 // subsequent runs will take these values from Redis (if updated via webserver)
 var sim_portfolio = { 'coins': {'USDT': 1000}, 'base_coin': 'USDT'};
-var sim_watch = ['ETH', 'BTC', 'LTC', 'XRP'];
+var sim_watch = ['ETH', 'BTC', 'LTC', 'XRP', 'ETC', 'ZEC', 'NXT', 'STR', 'DASH', 'XMR', 'REP' ];
 var sim_buy_at = 1.03;
 var sim_sell_at = 0.98;
+var sim_duration = 4;
+var sim_max_allocation = 0.3;
 
 var job = new CronJob('* * * * * *', function() {
 	// This function runs every second
@@ -36,7 +38,7 @@ var job = new CronJob('* * * * * *', function() {
 				pfolio = result;
 				if (pfolio['value'] <= 0) {
 					console.log('Portfolio has not been initialized, let\'s do that...');
-					portfolio.initializePortfolio(sim, sim_portfolio['coins'], sim_portfolio['base_coin'], function(err){
+					portfolio.initializePortfolio(sim, sim_portfolio['coins'], sim_portfolio['base_coin'], sim_max_allocation, function(err){
 						console.log('Initialized portfolio...');
 					});
 				}
@@ -49,7 +51,7 @@ var job = new CronJob('* * * * * *', function() {
 			simulation.getWatchedCoins(sim, function(err, results){
 				watching = results;
 				if ( _.isEmpty(results) ) {
-					simulation.initializeSimulation(sim, sim_watch, function(err){
+					simulation.initializeSimulation(sim, sim_watch, sim_buy_at, sim_sell_at, sim_duration, function(err){
 						watching = sim_watch;
 						console.log('Initialized simulation...');
 					});
