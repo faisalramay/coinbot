@@ -130,7 +130,7 @@ exports.getWatchedCoinsWithDetails = function(simulation, callback){
 					function(callback){
 						redis.hget(simulation + '-counter', coin, function(err, counter){
 							this_coin['counter'] = counter;
-							this_coin['human_counter'] = moment(counter, 'x').format('YY/MMM/D HH:mm:ss.SSS');
+							this_coin['human_counter'] = moment(counter, 'x').format('YYYY-MM-DD HH:mm:ss.SSS');
 							redis.zrangebyscore('price-history-USDT_' + coin, counter, '+inf', function(err, results) {
 								this_coin['min'] = _.min(results);
 								this_coin['max'] = _.max(results);

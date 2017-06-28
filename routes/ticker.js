@@ -12,25 +12,9 @@ var redis = new Redis(config.redis.port);
 router.get('/:ticker', function(req, res, next) {
 	
 	var ticker = req.params.ticker;
-	var price = { 'min': 0, 'max': 0, 'last': 0, 'history': []};
+	var price = { 'last': 0, 'history': []};
 	
 	async.parallel([
-	
-		function(callback){
-			// get minimum price
-			redis.get('price-min-' + ticker, function(err, min) {
-				price.min = min;
-				callback();
-			}); 
-		},
-		
-		function(callback){
-			// get maximum price
-			redis.get('price-max-' + ticker, function(err, max) {
-				price.max = max;
-				callback();
-			}); 
-		},
 		
 		function(callback){
 			// get last price
@@ -45,9 +29,20 @@ router.get('/:ticker', function(req, res, next) {
 			// get last 6 hours only ...
 			var score_from = moment().subtract(6, 'hour').format('x');
 			
-			//redis.zrangebyscore('price-history-' + ticker, score_from, '+inf', 'WITHSCORES', function(err, p_history) {
-			redis.zrangebyscore('price-history-' + ticker, score_from, '+inf', function(err, p_history) {
-				price.history = p_history;
+			redis.zrangebyscore('price-history-' + ticker, score_from, '+inf', 'WITHSCORES', function(err, results) {
+			//redis.zrangebyscore('price-history-' + ticker, score_from, '+inf', function(err, p_history) {
+				
+				var l = results.length;
+				if( l%2 === 0 ) {
+					for (var i = 0; i < l/2; i++){
+						price['history'].push({
+							'price' : results[(i*2)],
+							'timestamp' : results[(i*2)+1],
+							'human_time' : moment(results[(i*2)+1], 'x').format('YYYY-MM-DD HH:mm:ss.SSS')
+						});
+					}
+				}
+				
 				callback();
 			}); 
 		}

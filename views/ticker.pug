@@ -1,10 +1,20 @@
 extends layout
 
 block content
-  h1= ticker
-  p Min. price is #{price.min}
-  p Max. price is #{price.max}
-  p Last price is #{price.last}
-  h2 Historical Prices
-  each h in price.history
-    p= h
+	h1= ticker
+	p Last price is #{price.last}
+	div(class='panel panel-default')
+		div(class='panel-heading')
+			h3 Historical Prices
+		div(class='panel-body')
+			div(class='table-responsive')
+				table(class='table-condensed table-hover table-bordered')
+					thead
+						tr
+							th Time
+							th Price
+					tbody
+						each p in price.history
+							tr
+								td= p.human_time
+								td= p.price

@@ -174,7 +174,7 @@ exports.getHistory = function(simulation, callback){
 				if( l%2 === 0 ) {
 					for (var i = 0; i < l/2; i++){
 						console.log('i is:' + i);
-						trade_history[results[i*2]] = { 'timestamp' : results[(i*2)+1], 'human_time' : moment(results[(i*2)+1], 'x').format('YY/MMM/D HH:mm:ss.SSS')  };
+						trade_history[results[i*2]] = { 'timestamp' : results[(i*2)+1], 'human_time' : moment(results[(i*2)+1], 'x').format('YYYY-MM-DD HH:mm:ss.SSS')  };
 					}
 				}
 				callback();
