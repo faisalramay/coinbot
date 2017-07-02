@@ -157,7 +157,7 @@ exports.getWatchedCoinsWithDetails = function(simulation, callback){
 	});
 };
 
-exports.processTicker = function(simulation, ticker, callback) {
+exports.processTicker = function(simulation, ticker, holding, callback) {
 
 	var coin = ticker.split('_')[1];
 	
@@ -196,8 +196,9 @@ exports.processTicker = function(simulation, ticker, callback) {
 						redis.hset(simulation + '-counter', coin, start_time);
 					}
 					
-					if ( start_time - moment().subtract(duration, 'hour').format('x') <= 0 ) {
-						console.log('reset counter for ' + coin + ' @ 6 HOURS');
+					if ( start_time - moment().subtract(duration, 'hour').format('x') <= 0 && holding > 0) {
+						console.log('reset counter for ' + coin + ' holding ' + holding + ' coins');
+						console.log('reset counter for ' + coin + ' @ ' + duration + ' HOURS');
 						start_time = moment().format('x');
 						redis.hset(simulation + '-counter', coin, start_time);
 					}

@@ -64,7 +64,10 @@ var job = new CronJob('* * * * * *', function() {
 			// Process all coins we are watching - see what we might want to do!
 			async.each(watching, function(coin, callback){
 				// console.log('processing coin: ' + coin);
-				simulation.processTicker(sim, pfolio['base_coin'] + '_' + coin, function(err, trade){
+				var holding = 0;
+				if ( pfolio['coins'][coin] ) { holding = pfolio['coins'][coin] }
+				
+				simulation.processTicker(sim, pfolio['base_coin'] + '_' + coin, holding, function(err, trade){
 					if (err) console.log('error processing ticker: ' + ticker);
 					
 					if ( ! _.isEmpty(trade) ) possible_trades.push(trade);
